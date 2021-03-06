@@ -5,7 +5,7 @@ import com.google.common.collect.Maps;
 import io.izzel.taboolib.client.TabooLibClient;
 import io.izzel.taboolib.client.TabooLibServer;
 import io.izzel.taboolib.kotlin.Reflex;
-import io.izzel.taboolib.metrics.BStats;
+import io.izzel.taboolib.metrics.BMetrics;
 import io.izzel.taboolib.module.dependency.TDependencyInjector;
 import io.izzel.taboolib.module.inject.TSchedule;
 import io.izzel.taboolib.util.Files;
@@ -50,8 +50,28 @@ public class TabooLibLoader {
         // 加载依赖
         TDependencyInjector.inject(TabooLib.getPlugin(), TabooLib.class);
         // 插件统计
-        BStats bStats = new BStats(TabooLib.getPlugin());
-        bStats.addCustomChart(new BStats.SingleLineChart("plugins_using_taboolib", () -> Math.toIntExact(Arrays.stream(Bukkit.getPluginManager().getPlugins()).filter(TabooLibAPI::isDependTabooLib).count())));
+        BMetrics metrics = new BMetrics(TabooLib.getPlugin(), 2187);
+        metrics.addCustomChart(new BMetrics.SingleLineChart("plugins_using_taboolib", () -> {
+            int count = 0;
+            for (Plugin plugin : Bukkit.getPluginManager().getPlugins()) {
+                if (TabooLibAPI.isDependTabooLib(plugin)) {
+                    count++;
+                }
+            }
+            return count;
+        }));
+        metrics.addCustomChart(new BMetrics.AdvancedPie("plugins", () -> {
+            Map<String, Integer> map = new HashMap<>();
+            for (Plugin plugin : Bukkit.getPluginManager().getPlugins()) {
+                if (TabooLibAPI.isDependTabooLib(plugin)) {
+                    map.put(plugin.getName(), map.getOrDefault(plugin.getName(), 0) + 1);
+                }
+                if (plugin.getDescription().getDepend().contains("TabooLib")) {
+                    map.put(plugin.getName() + " (Legacy 4)", map.getOrDefault(plugin.getName(), 0) + 1);
+                }
+            }
+            return map;
+        }));
         // 读取插件类
         setupClasses(TabooLib.getPlugin());
         // 读取加载器
@@ -173,7 +193,7 @@ public class TabooLibLoader {
         try {
             long time = System.currentTimeMillis();
             final List<Class<?>> classes = Lists.newArrayList();
-            File file = plugin.getName().equals("TabooLib") ? TabooLib.getTabooLibFile() : Reflex.Companion.from(JavaPlugin.class).instance(plugin).read("file");
+            File file = plugin.getName().equals("TabooLib") ? TabooLib.getFile() : Reflex.Companion.from(JavaPlugin.class).instance(plugin).read("file");
             File fileClasses = Files.file(TabooLib.getPlugin().getDataFolder(), "cache/classes/" + plugin.getName() + ".txt");
             Files.read(fileClasses, r -> {
                 String fileHash = Files.getFileHash(file, "SHA-1");

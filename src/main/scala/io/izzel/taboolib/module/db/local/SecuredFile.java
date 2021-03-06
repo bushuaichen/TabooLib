@@ -1,14 +1,14 @@
 package io.izzel.taboolib.module.db.local;
 
-import io.izzel.taboolib.kotlin.Reflex;
 import io.izzel.taboolib.util.Files;
 import org.bukkit.Bukkit;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
+import java.util.Map;
 import java.util.logging.Level;
 
 /**
@@ -67,13 +67,26 @@ public class SecuredFile extends YamlConfiguration {
     }
 
     public static String dump(Object data) {
-        Yaml yaml = Reflex.Companion.of(new YamlConfiguration()).read("yaml");
-        try {
-            return yaml.dump(data);
-        } catch (Throwable t) {
-            t.printStackTrace();
+        if (data == null) {
+            return "";
         }
-        return "";
+        boolean single = false;
+        YamlConfiguration dump = new YamlConfiguration();
+        if (data instanceof ConfigurationSection) {
+            ((ConfigurationSection) data).getValues(false).forEach(dump::set);
+        } else if (data instanceof Map) {
+            ((Map<?, ?>) data).forEach((k, v) -> dump.set(k.toString(), v));
+        } else {
+            single = true;
+            dump.set("value", data);
+        }
+        String[] save;
+        if (single) {
+            save = dump.saveToString().substring("value:".length()).trim().split("\n");
+        } else {
+            save = dump.saveToString().split("\n");
+        }
+        return String.join("\n", save);
     }
 
     public static SecuredFile loadConfiguration(String contents) {
