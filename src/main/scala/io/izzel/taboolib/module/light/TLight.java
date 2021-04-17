@@ -26,7 +26,11 @@ public class TLight {
             NMS.handle().deleteLight(block, lightType);
         }
         boolean r = NMS.handle().createLight(block, lightType, lightLevel);
-        NMS.handle().update(block.getChunk());
+        for (int x = -1; x <= 1; x++) {
+            for (int y = -1; y <= 1; y++) {
+                NMS.handle().update(block.getWorld().getChunkAt(block.getChunk().getX() + x, block.getChunk().getZ() + y));
+            }
+        }
         return r;
     }
 
@@ -39,7 +43,11 @@ public class TLight {
      */
     public static boolean delete(Block block, Type lightType) {
         boolean r = NMS.handle().deleteLight(block, lightType);
-        NMS.handle().update(block.getChunk());
+        for (int x = -1; x <= 1; x++) {
+            for (int y = -1; y <= 1; y++) {
+                NMS.handle().update(block.getWorld().getChunkAt(block.getChunk().getX() + x, block.getChunk().getZ() + y));
+            }
+        }
         return r;
     }
 
@@ -56,7 +64,11 @@ public class TLight {
             deleteLight(location, lightType);
         }
         boolean r = NMS.handle().createLight(location.getBlock(), lightType, lightLevel);
-        NMS.handle().update(location.getChunk());
+        for (int x = -1; x <= 1; x++) {
+            for (int y = -1; y <= 1; y++) {
+                NMS.handle().update(location.getWorld().getChunkAt(location.getChunk().getX() + x, location.getChunk().getZ() + y));
+            }
+        }
         return r;
     }
 
@@ -69,7 +81,11 @@ public class TLight {
      */
     public static boolean delete(Location location, Type lightType) {
         boolean r = NMS.handle().deleteLight(location.getBlock(), lightType);
-        NMS.handle().update(location.getChunk());
+        for (int x = -1; x <= 1; x++) {
+            for (int y = -1; y <= 1; y++) {
+                NMS.handle().update(location.getWorld().getChunkAt(location.getChunk().getX() + x, location.getChunk().getZ() + y));
+            }
+        }
         return r;
     }
 
