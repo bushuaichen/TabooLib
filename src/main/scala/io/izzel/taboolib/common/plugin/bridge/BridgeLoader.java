@@ -1,8 +1,13 @@
 package io.izzel.taboolib.common.plugin.bridge;
 
+import io.izzel.taboolib.util.Ref;
 import io.izzel.taboolib.util.Reflection;
 import org.bukkit.Bukkit;
+import sun.misc.Unsafe;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 
 /**
@@ -11,13 +16,11 @@ import java.lang.reflect.Method;
  */
 public class BridgeLoader extends ClassLoader {
 
-    private static Method findClass;
     private static ClassLoader pluginClassLoader;
 
     private BridgeLoader() {
         super(BridgeLoader.class.getClassLoader());
         try {
-            findClass = Reflection.getMethod(ClassLoader.class, "findClass", String.class);
             pluginClassLoader = Bukkit.getPluginManager().getPlugins()[0].getClass().getClassLoader();
         } catch (Throwable t) {
             t.printStackTrace();
@@ -27,11 +30,14 @@ public class BridgeLoader extends ClassLoader {
     @Override
     protected Class<?> findClass(String name) throws ClassNotFoundException {
         try {
-            Object o = findClass.invoke(pluginClassLoader, name);
-            if (o != null) {
-                return (Class<?>) o;
-            }
-        } catch (Throwable ignored) {
+            return Class.forName(name, false, pluginClassLoader);
+//            MethodHandle methodHandle = Ref.lookup().findVirtual(ClassLoader.class, "findClass", MethodType.methodType(Class.class, String.class));
+//            Object o = methodHandle.invoke(pluginClassLoader, name);
+//            if (o != null) {
+//                return (Class<?>) o;
+//            }
+        } catch (Throwable e) {
+            e.printStackTrace();
         }
         return super.findClass(name);
     }

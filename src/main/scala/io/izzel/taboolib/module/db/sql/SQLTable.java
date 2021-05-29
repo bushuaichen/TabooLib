@@ -9,6 +9,7 @@ import io.izzel.taboolib.util.Strings;
 import javax.sql.DataSource;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -21,6 +22,11 @@ public class SQLTable {
 
     private final String tableName;
     private final List<IColumn> columns = Lists.newArrayList();
+
+    /**
+     * 低版本 MySQL 主键
+     */
+    private final List<String> legacyKeys = Lists.newArrayList();
 
     /**
      * 创建数据表实例
@@ -77,6 +83,28 @@ public class SQLTable {
      */
     public SQLTable column(IColumn... column) {
         columns.addAll(Arrays.asList(column));
+        return this;
+    }
+
+    /**
+     * 若MySQL版本不兼容 {@link SQLColumnOption} 中的 PRIMARY_KEY 则使用该方法指定主键
+     *
+     * @param columnNames 列名
+     * @return {@link SQLTable}
+     */
+    public SQLTable primaryKeys(String... columnNames) {
+        legacyKeys.addAll(Arrays.asList(columnNames));
+        return this;
+    }
+
+    /**
+     * 若MySQL版本不兼容 {@link SQLColumnOption} 中的 PRIMARY_KEY 则使用该方法指定主键
+     *
+     * @param columnName 列名
+     * @return {@link SQLTable}
+     */
+    public SQLTable primaryKey(String columnName) {
+        legacyKeys.add(columnName);
         return this;
     }
 
@@ -178,37 +206,40 @@ public class SQLTable {
     public String createQuery() {
         StringBuilder builder = new StringBuilder();
         builder.append("create table if not exists `").append(tableName).append("` (");
-        builder.append(columns.stream()
-                .map(i -> i.convertToCommand().trim())
-                .collect(Collectors.joining(", ")));
-
+        builder.append(columns.stream().map(i -> i.convertToCommand().trim()).collect(Collectors.joining(", ")));
+        // 低版本 MySQL 主键设置方法
+        if (!legacyKeys.isEmpty()) {
+            builder.append(", PRIMARY KEY (").append(legacyKeys.stream().map(i -> "`" + i + "`").collect(Collectors.joining(", "))).append(")");
+        }
         // 5.41 更新，优化 SQL 类型下的建表命令
-        {
-            List<SQLColumn> uniqueKey = Lists.newArrayList();
-            List<SQLColumn> normalKey = Lists.newArrayList();
-            columns.stream().filter(i -> i instanceof SQLColumn).forEach(i -> {
-                List<SQLColumnOption> columnOptions = ((SQLColumn) i).getColumnOptions();
-                if (columnOptions.contains(SQLColumnOption.UNIQUE_KEY)) {
-                    uniqueKey.add((SQLColumn) i);
-                } else if (columnOptions.contains(SQLColumnOption.KEY)) {
-                    normalKey.add((SQLColumn) i);
-                }
-            });
-            if (uniqueKey.size() > 0) {
-                builder.append(Strings.replaceWithOrder(", unique key `uk_{0}` ({1})",
-                        uniqueKey.stream().map(SQLColumn::getColumnName)
-                                .collect(Collectors.joining("_")),
-                        uniqueKey.stream().map(i -> "`" + i.getColumnName() + "`" + (i.isDescendingIndex() ? " desc" : ""))
-                                .collect(Collectors.joining(", "))
-                ));
+        List<SQLColumn> uniqueKey = Lists.newArrayList();
+        List<SQLColumn> normalKey = Lists.newArrayList();
+        columns.stream().filter(i -> i instanceof SQLColumn).forEach(i -> {
+            List<SQLColumnOption> columnOptions = ((SQLColumn) i).getColumnOptions();
+            if (columnOptions.contains(SQLColumnOption.UNIQUE_KEY)) {
+                uniqueKey.add((SQLColumn) i);
+            } else if (columnOptions.contains(SQLColumnOption.KEY)) {
+                normalKey.add((SQLColumn) i);
             }
-            if (normalKey.size() > 0) {
-                builder.append(Strings.replaceWithOrder(", key `idx_{0}` ({1})",
-                        normalKey.stream().map(SQLColumn::getColumnName)
-                                .collect(Collectors.joining("_")),
-                        normalKey.stream().map(i -> "`" + i.getColumnName() + "`" + (i.isDescendingIndex() ? " desc" : ""))
-                                .collect(Collectors.joining(", "))
-                ));
+        });
+        Map<IndexType, List<SQLColumn>> uniqueKeyGroup = uniqueKey.stream().collect(Collectors.groupingBy(SQLColumn::getIndexType));
+        for (Map.Entry<IndexType, List<SQLColumn>> entry : uniqueKeyGroup.entrySet()) {
+            builder.append(Strings.replaceWithOrder(", unique key `uk_{0}` ({1})",
+                    entry.getValue().stream().map(SQLColumn::getColumnName).collect(Collectors.joining("_")),
+                    entry.getValue().stream().map(i -> "`" + i.getColumnName() + "`" + (i.isDescendingIndex() ? " desc" : "")).collect(Collectors.joining(", "))
+            ));
+            if (entry.getKey() != IndexType.DEFAULT) {
+                builder.append(" USING ").append(entry.getKey());
+            }
+        }
+        Map<IndexType, List<SQLColumn>> normalKeyGroup = normalKey.stream().collect(Collectors.groupingBy(SQLColumn::getIndexType));
+        for (Map.Entry<IndexType, List<SQLColumn>> entry : normalKeyGroup.entrySet()) {
+            builder.append(Strings.replaceWithOrder(", key `idx_{0}` ({1})",
+                    entry.getValue().stream().map(SQLColumn::getColumnName).collect(Collectors.joining("_")),
+                    entry.getValue().stream().map(i -> "`" + i.getColumnName() + "`" + (i.isDescendingIndex() ? " desc" : "")).collect(Collectors.joining(", "))
+            ));
+            if (entry.getKey() != IndexType.DEFAULT) {
+                builder.append(" USING ").append(entry.getKey());
             }
         }
         return builder.append(")").toString();
